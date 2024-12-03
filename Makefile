@@ -53,10 +53,13 @@ LIBS = #-lm
 
 OBJ = codec.o common.o deterministic.o falcon.o fft.o fpr.o keygen.o rng.o shake.o sign.o vrfy.o
 
-all: tests/test_deterministic tests/test_falcon tests/speed
+all: libfalcon.a tests/test_deterministic tests/test_falcon tests/speed
 
 clean:
-	-rm -f $(OBJ) tests/test_deterministic tests/test_deterministic.o tests/test_falcon tests/test_falcon.o tests/speed tests/speed.o
+	-rm -f $(OBJ) libfalcon.a tests/test_deterministic tests/test_deterministic.o tests/test_falcon tests/test_falcon.o tests/speed tests/speed.o
+
+libfalcon.a: $(OBJ)
+	ar rcs libfalcon.a $(OBJ)
 
 tests/test_deterministic: tests/test_deterministic.o $(OBJ)
 	$(LD) $(LDFLAGS) -o tests/test_deterministic tests/test_deterministic.o $(OBJ) $(LIBS)
