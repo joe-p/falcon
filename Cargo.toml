@@ -1,10 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/falcon_rs",
+  "crates/falcon_rs", "tools/cargo-bin",
   "tools/uniffi-bindgen",
 ]
 
 [workspace.dependencies]
 uniffi = { version = "0.28.3" }
+
+[workspace.metadata.bin]
+uniffi-bindgen-go = { git = "https://github.com/NordSecurity/uniffi-bindgen-go", tag = "v0.3.0+v0.28.3", version = "*" }
 
