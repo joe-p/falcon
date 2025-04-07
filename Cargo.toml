@@ -1,11 +1,10 @@
-[package]
-name = "falcon-rs"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
+members = [
+  "crates/falcon_rs",
+  "tools/uniffi-bindgen",
+]
 
-[dependencies]
-libc = "0.2"
+[workspace.dependencies]
+uniffi = { version = "0.28.3" }
 
-[build-dependencies]
-bindgen = "0.69"
-cc = "1.0"

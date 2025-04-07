@@ -5,17 +5,17 @@ fn main() {
     // Build C files
     cc::Build::new()
         .files([
-            "codec.c",
-            "common.c",
-            "deterministic.c",
-            "falcon.c",
-            "fft.c",
-            "fpr.c",
-            "keygen.c",
-            "rng.c",
-            "shake.c",
-            "sign.c",
-            "vrfy.c",
+            "../../codec.c",
+            "../../common.c",
+            "../../deterministic.c",
+            "../../falcon.c",
+            "../../fft.c",
+            "../../fpr.c",
+            "../../keygen.c",
+            "../../rng.c",
+            "../../shake.c",
+            "../../sign.c",
+            "../../vrfy.c",
         ])
         .warnings(false)
         .flag("-Wall")
@@ -34,8 +34,8 @@ fn main() {
 
     // Generate bindings
     let bindings = bindgen::Builder::default()
-        .header("falcon.h")
-        .header("deterministic.h")
+        .header("../../falcon.h")
+        .header("../../deterministic.h")
         .generate()
         .expect("Unable to generate bindings");
 
