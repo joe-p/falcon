@@ -1,19 +1,19 @@
-
 package falcon_rs
 
-// #include <falcon_rs.h>
+/*
+#include <falcon_rs.h>
+#cgo LDFLAGS: -L${SRCDIR}/../../../target/release -lfalcon_rs
+*/
 import "C"
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
-	"unsafe"
-	"encoding/binary"
 	"math"
+	"unsafe"
 )
-
-
 
 // This is needed, because as of go 1.24
 // type RustBuffer C.RustBuffer cannot have methods,
@@ -32,11 +32,11 @@ type RustBufferI interface {
 }
 
 func RustBufferFromExternal(b RustBufferI) GoRustBuffer {
-	return GoRustBuffer {
-		inner: C.RustBuffer {
+	return GoRustBuffer{
+		inner: C.RustBuffer{
 			capacity: C.uint64_t(b.Capacity()),
-			len: C.uint64_t(b.Len()),
-			data: (*C.uchar)(b.Data()),
+			len:      C.uint64_t(b.Len()),
+			data:     (*C.uchar)(b.Data()),
 		},
 	}
 }
@@ -59,7 +59,7 @@ func (cb GoRustBuffer) AsReader() *bytes.Reader {
 }
 
 func (cb GoRustBuffer) Free() {
-	rustCall(func( status *C.RustCallStatus) bool {
+	rustCall(func(status *C.RustCallStatus) bool {
 		C.ffi_falcon_rs_rustbuffer_free(cb.inner, status)
 		return false
 	})
@@ -68,7 +68,6 @@ func (cb GoRustBuffer) Free() {
 func (cb GoRustBuffer) ToGoBytes() []byte {
 	return C.GoBytes(unsafe.Pointer(cb.inner.data), C.int(cb.inner.len))
 }
-
 
 func stringToRustBuffer(str string) C.RustBuffer {
 	return bytesToRustBuffer([]byte(str))
@@ -80,16 +79,15 @@ func bytesToRustBuffer(b []byte) C.RustBuffer {
 	}
 	// We can pass the pointer along here, as it is pinned
 	// for the duration of this call
-	foreign := C.ForeignBytes {
-		len: C.int(len(b)),
+	foreign := C.ForeignBytes{
+		len:  C.int(len(b)),
 		data: (*C.uchar)(unsafe.Pointer(&b[0])),
 	}
-	
-	return rustCall(func( status *C.RustCallStatus) C.RustBuffer {
+
+	return rustCall(func(status *C.RustCallStatus) C.RustBuffer {
 		return C.ffi_falcon_rs_rustbuffer_from_bytes(foreign, status)
 	})
 }
-
 
 type BufLifter[GoType any] interface {
 	Lift(value RustBufferI) GoType
@@ -132,8 +130,6 @@ func LiftFromRustBuffer[GoType any](bufReader BufReader[GoType], rbuf RustBuffer
 	return item
 }
 
-
-
 func rustCallWithError[E any, U any](converter BufReader[*E], callback func(*C.RustCallStatus) U) (U, *E) {
 	var status C.RustCallStatus
 	returnValue := callback(&status)
@@ -146,13 +142,13 @@ func checkCallStatus[E any](converter BufReader[*E], status C.RustCallStatus) *E
 	case 0:
 		return nil
 	case 1:
-		return LiftFromRustBuffer(converter, GoRustBuffer { inner: status.errorBuf })
+		return LiftFromRustBuffer(converter, GoRustBuffer{inner: status.errorBuf})
 	case 2:
 		// when the rust code sees a panic, it tries to construct a rustBuffer
 		// with the message.  but if that code panics, then it just sends back
 		// an empty buffer.
 		if status.errorBuf.len > 0 {
-			panic(fmt.Errorf("%s", FfiConverterStringINSTANCE.Lift(GoRustBuffer { inner: status.errorBuf })))
+			panic(fmt.Errorf("%s", FfiConverterStringINSTANCE.Lift(GoRustBuffer{inner: status.errorBuf})))
 		} else {
 			panic(fmt.Errorf("Rust panicked while handling Rust panic"))
 		}
@@ -172,7 +168,7 @@ func checkCallStatusUnknown(status C.RustCallStatus) error {
 		// with the message.  but if that code panics, then it just sends back
 		// an empty buffer.
 		if status.errorBuf.len > 0 {
-			panic(fmt.Errorf("%s", FfiConverterStringINSTANCE.Lift(GoRustBuffer {
+			panic(fmt.Errorf("%s", FfiConverterStringINSTANCE.Lift(GoRustBuffer{
 				inner: status.errorBuf,
 			})))
 		} else {
@@ -194,7 +190,6 @@ func rustCall[U any](callback func(*C.RustCallStatus) U) U {
 type NativeError interface {
 	AsError() error
 }
-
 
 func writeInt8(writer io.Writer, value int8) {
 	if err := binary.Write(writer, binary.BigEndian, value); err != nil {
@@ -255,7 +250,6 @@ func writeFloat64(writer io.Writer, value float64) {
 		panic(err)
 	}
 }
-
 
 func readInt8(reader io.Reader) int8 {
 	var result int8
@@ -338,10 +332,9 @@ func readFloat64(reader io.Reader) float64 {
 }
 
 func init() {
-        
-        uniffiCheckChecksums()
-}
 
+	uniffiCheckChecksums()
+}
 
 func uniffiCheckChecksums() {
 	// Get the bindings contract version from our ComponentInterface
@@ -355,36 +348,33 @@ func uniffiCheckChecksums() {
 		panic("falcon_rs: UniFFI contract version mismatch")
 	}
 	{
-	checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
-		return C.uniffi_falcon_rs_checksum_func_generate_key()
-	})
-	if checksum != 26145 {
-		// If this happens try cleaning and rebuilding your project
-		panic("falcon_rs: uniffi_falcon_rs_checksum_func_generate_key: UniFFI API checksum mismatch")
-	}
-	}
-	{
-	checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
-		return C.uniffi_falcon_rs_checksum_func_sign_compressed()
-	})
-	if checksum != 63369 {
-		// If this happens try cleaning and rebuilding your project
-		panic("falcon_rs: uniffi_falcon_rs_checksum_func_sign_compressed: UniFFI API checksum mismatch")
-	}
+		checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
+			return C.uniffi_falcon_rs_checksum_func_generate_key()
+		})
+		if checksum != 26145 {
+			// If this happens try cleaning and rebuilding your project
+			panic("falcon_rs: uniffi_falcon_rs_checksum_func_generate_key: UniFFI API checksum mismatch")
+		}
 	}
 	{
-	checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
-		return C.uniffi_falcon_rs_checksum_func_verify()
-	})
-	if checksum != 25565 {
-		// If this happens try cleaning and rebuilding your project
-		panic("falcon_rs: uniffi_falcon_rs_checksum_func_verify: UniFFI API checksum mismatch")
+		checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
+			return C.uniffi_falcon_rs_checksum_func_sign_compressed()
+		})
+		if checksum != 63369 {
+			// If this happens try cleaning and rebuilding your project
+			panic("falcon_rs: uniffi_falcon_rs_checksum_func_sign_compressed: UniFFI API checksum mismatch")
+		}
 	}
+	{
+		checksum := rustCall(func(_uniffiStatus *C.RustCallStatus) C.uint16_t {
+			return C.uniffi_falcon_rs_checksum_func_verify()
+		})
+		if checksum != 25565 {
+			// If this happens try cleaning and rebuilding your project
+			panic("falcon_rs: uniffi_falcon_rs_checksum_func_verify: UniFFI API checksum mismatch")
+		}
 	}
 }
-
-
-
 
 type FfiConverterInt32 struct{}
 
@@ -406,10 +396,9 @@ func (FfiConverterInt32) Read(reader io.Reader) int32 {
 	return readInt32(reader)
 }
 
-type FfiDestroyerInt32 struct {}
+type FfiDestroyerInt32 struct{}
 
 func (FfiDestroyerInt32) Destroy(_ int32) {}
-
 
 type FfiConverterString struct{}
 
@@ -457,10 +446,9 @@ func (FfiConverterString) Write(writer io.Writer, value string) {
 	}
 }
 
-type FfiDestroyerString struct {}
+type FfiDestroyerString struct{}
 
 func (FfiDestroyerString) Destroy(_ string) {}
-
 
 type FfiConverterBytes struct{}
 
@@ -502,23 +490,21 @@ func (c FfiConverterBytes) Read(reader io.Reader) []byte {
 	return buffer
 }
 
-type FfiDestroyerBytes struct {}
+type FfiDestroyerBytes struct{}
 
 func (FfiDestroyerBytes) Destroy(_ []byte) {}
 
-
-
 type KeyPair struct {
-	PublicKey []byte
+	PublicKey  []byte
 	PrivateKey []byte
 }
 
 func (r *KeyPair) Destroy() {
-		FfiDestroyerBytes{}.Destroy(r.PublicKey);
-		FfiDestroyerBytes{}.Destroy(r.PrivateKey);
+	FfiDestroyerBytes{}.Destroy(r.PublicKey)
+	FfiDestroyerBytes{}.Destroy(r.PrivateKey)
 }
 
-type FfiConverterKeyPair struct {}
+type FfiConverterKeyPair struct{}
 
 var FfiConverterKeyPairINSTANCE = FfiConverterKeyPair{}
 
@@ -527,9 +513,9 @@ func (c FfiConverterKeyPair) Lift(rb RustBufferI) KeyPair {
 }
 
 func (c FfiConverterKeyPair) Read(reader io.Reader) KeyPair {
-	return KeyPair {
-			FfiConverterBytesINSTANCE.Read(reader),
-			FfiConverterBytesINSTANCE.Read(reader),
+	return KeyPair{
+		FfiConverterBytesINSTANCE.Read(reader),
+		FfiConverterBytesINSTANCE.Read(reader),
 	}
 }
 
@@ -538,11 +524,11 @@ func (c FfiConverterKeyPair) Lower(value KeyPair) C.RustBuffer {
 }
 
 func (c FfiConverterKeyPair) Write(writer io.Writer, value KeyPair) {
-		FfiConverterBytesINSTANCE.Write(writer, value.PublicKey);
-		FfiConverterBytesINSTANCE.Write(writer, value.PrivateKey);
+	FfiConverterBytesINSTANCE.Write(writer, value.PublicKey)
+	FfiConverterBytesINSTANCE.Write(writer, value.PrivateKey)
 }
 
-type FfiDestroyerKeyPair struct {}
+type FfiDestroyerKeyPair struct{}
 
 func (_ FfiDestroyerKeyPair) Destroy(value KeyPair) {
 	value.Destroy()
@@ -580,22 +566,22 @@ var ErrErrorConvertFail = fmt.Errorf("ErrorConvertFail")
 type ErrorKeygenFail struct {
 	Field0 int32
 }
+
 func NewErrorKeygenFail(
 	var0 int32,
 ) *Error {
-	return &Error { err: &ErrorKeygenFail {
-			Field0: var0,} }
+	return &Error{err: &ErrorKeygenFail{
+		Field0: var0}}
 }
 
 func (e ErrorKeygenFail) destroy() {
-		FfiDestroyerInt32{}.Destroy(e.Field0)
+	FfiDestroyerInt32{}.Destroy(e.Field0)
 }
-
 
 func (err ErrorKeygenFail) Error() string {
 	return fmt.Sprint("KeygenFail",
 		": ",
-		
+
 		"Field0=",
 		err.Field0,
 	)
@@ -604,25 +590,26 @@ func (err ErrorKeygenFail) Error() string {
 func (self ErrorKeygenFail) Is(target error) bool {
 	return target == ErrErrorKeygenFail
 }
+
 type ErrorSignFail struct {
 	Field0 int32
 }
+
 func NewErrorSignFail(
 	var0 int32,
 ) *Error {
-	return &Error { err: &ErrorSignFail {
-			Field0: var0,} }
+	return &Error{err: &ErrorSignFail{
+		Field0: var0}}
 }
 
 func (e ErrorSignFail) destroy() {
-		FfiDestroyerInt32{}.Destroy(e.Field0)
+	FfiDestroyerInt32{}.Destroy(e.Field0)
 }
-
 
 func (err ErrorSignFail) Error() string {
 	return fmt.Sprint("SignFail",
 		": ",
-		
+
 		"Field0=",
 		err.Field0,
 	)
@@ -631,25 +618,26 @@ func (err ErrorSignFail) Error() string {
 func (self ErrorSignFail) Is(target error) bool {
 	return target == ErrErrorSignFail
 }
+
 type ErrorVerifyFail struct {
 	Field0 int32
 }
+
 func NewErrorVerifyFail(
 	var0 int32,
 ) *Error {
-	return &Error { err: &ErrorVerifyFail {
-			Field0: var0,} }
+	return &Error{err: &ErrorVerifyFail{
+		Field0: var0}}
 }
 
 func (e ErrorVerifyFail) destroy() {
-		FfiDestroyerInt32{}.Destroy(e.Field0)
+	FfiDestroyerInt32{}.Destroy(e.Field0)
 }
-
 
 func (err ErrorVerifyFail) Error() string {
 	return fmt.Sprint("VerifyFail",
 		": ",
-		
+
 		"Field0=",
 		err.Field0,
 	)
@@ -658,25 +646,26 @@ func (err ErrorVerifyFail) Error() string {
 func (self ErrorVerifyFail) Is(target error) bool {
 	return target == ErrErrorVerifyFail
 }
+
 type ErrorConvertFail struct {
 	Field0 int32
 }
+
 func NewErrorConvertFail(
 	var0 int32,
 ) *Error {
-	return &Error { err: &ErrorConvertFail {
-			Field0: var0,} }
+	return &Error{err: &ErrorConvertFail{
+		Field0: var0}}
 }
 
 func (e ErrorConvertFail) destroy() {
-		FfiDestroyerInt32{}.Destroy(e.Field0)
+	FfiDestroyerInt32{}.Destroy(e.Field0)
 }
-
 
 func (err ErrorConvertFail) Error() string {
 	return fmt.Sprint("ConvertFail",
 		": ",
-		
+
 		"Field0=",
 		err.Field0,
 	)
@@ -703,19 +692,19 @@ func (c FfiConverterError) Read(reader io.Reader) *Error {
 
 	switch errorID {
 	case 1:
-		return &Error{ &ErrorKeygenFail{
+		return &Error{&ErrorKeygenFail{
 			Field0: FfiConverterInt32INSTANCE.Read(reader),
 		}}
 	case 2:
-		return &Error{ &ErrorSignFail{
+		return &Error{&ErrorSignFail{
 			Field0: FfiConverterInt32INSTANCE.Read(reader),
 		}}
 	case 3:
-		return &Error{ &ErrorVerifyFail{
+		return &Error{&ErrorVerifyFail{
 			Field0: FfiConverterInt32INSTANCE.Read(reader),
 		}}
 	case 4:
-		return &Error{ &ErrorConvertFail{
+		return &Error{&ErrorConvertFail{
 			Field0: FfiConverterInt32INSTANCE.Read(reader),
 		}}
 	default:
@@ -725,76 +714,74 @@ func (c FfiConverterError) Read(reader io.Reader) *Error {
 
 func (c FfiConverterError) Write(writer io.Writer, value *Error) {
 	switch variantValue := value.err.(type) {
-		case *ErrorKeygenFail:
-			writeInt32(writer, 1)
-			FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
-		case *ErrorSignFail:
-			writeInt32(writer, 2)
-			FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
-		case *ErrorVerifyFail:
-			writeInt32(writer, 3)
-			FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
-		case *ErrorConvertFail:
-			writeInt32(writer, 4)
-			FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
-		default:
-			_ = variantValue
-			panic(fmt.Sprintf("invalid error value `%v` in FfiConverterError.Write", value))
+	case *ErrorKeygenFail:
+		writeInt32(writer, 1)
+		FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
+	case *ErrorSignFail:
+		writeInt32(writer, 2)
+		FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
+	case *ErrorVerifyFail:
+		writeInt32(writer, 3)
+		FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
+	case *ErrorConvertFail:
+		writeInt32(writer, 4)
+		FfiConverterInt32INSTANCE.Write(writer, variantValue.Field0)
+	default:
+		_ = variantValue
+		panic(fmt.Sprintf("invalid error value `%v` in FfiConverterError.Write", value))
 	}
 }
 
-type FfiDestroyerError struct {}
+type FfiDestroyerError struct{}
 
 func (_ FfiDestroyerError) Destroy(value *Error) {
 	switch variantValue := value.err.(type) {
-		case ErrorKeygenFail:
-			variantValue.destroy()
-		case ErrorSignFail:
-			variantValue.destroy()
-		case ErrorVerifyFail:
-			variantValue.destroy()
-		case ErrorConvertFail:
-			variantValue.destroy()
-		default:
-			_ = variantValue
-			panic(fmt.Sprintf("invalid error value `%v` in FfiDestroyerError.Destroy", value))
+	case ErrorKeygenFail:
+		variantValue.destroy()
+	case ErrorSignFail:
+		variantValue.destroy()
+	case ErrorVerifyFail:
+		variantValue.destroy()
+	case ErrorConvertFail:
+		variantValue.destroy()
+	default:
+		_ = variantValue
+		panic(fmt.Sprintf("invalid error value `%v` in FfiDestroyerError.Destroy", value))
 	}
 }
 
-
 func GenerateKey(seed []byte) (KeyPair, *Error) {
-	_uniffiRV, _uniffiErr := rustCallWithError[Error](FfiConverterError{},func(_uniffiStatus *C.RustCallStatus) RustBufferI {
-		return GoRustBuffer {
-		inner: C.uniffi_falcon_rs_fn_func_generate_key(FfiConverterBytesINSTANCE.Lower(seed),_uniffiStatus),
-	}
-	})
-		if _uniffiErr != nil {
-			var _uniffiDefaultValue KeyPair
-			return _uniffiDefaultValue, _uniffiErr
-		} else {
-			return FfiConverterKeyPairINSTANCE.Lift(_uniffiRV), _uniffiErr
+	_uniffiRV, _uniffiErr := rustCallWithError[Error](FfiConverterError{}, func(_uniffiStatus *C.RustCallStatus) RustBufferI {
+		return GoRustBuffer{
+			inner: C.uniffi_falcon_rs_fn_func_generate_key(FfiConverterBytesINSTANCE.Lower(seed), _uniffiStatus),
 		}
+	})
+	if _uniffiErr != nil {
+		var _uniffiDefaultValue KeyPair
+		return _uniffiDefaultValue, _uniffiErr
+	} else {
+		return FfiConverterKeyPairINSTANCE.Lift(_uniffiRV), _uniffiErr
+	}
 }
 
 func SignCompressed(privateKeySlice []byte, msg []byte) ([]byte, *Error) {
-	_uniffiRV, _uniffiErr := rustCallWithError[Error](FfiConverterError{},func(_uniffiStatus *C.RustCallStatus) RustBufferI {
-		return GoRustBuffer {
-		inner: C.uniffi_falcon_rs_fn_func_sign_compressed(FfiConverterBytesINSTANCE.Lower(privateKeySlice), FfiConverterBytesINSTANCE.Lower(msg),_uniffiStatus),
-	}
-	})
-		if _uniffiErr != nil {
-			var _uniffiDefaultValue []byte
-			return _uniffiDefaultValue, _uniffiErr
-		} else {
-			return FfiConverterBytesINSTANCE.Lift(_uniffiRV), _uniffiErr
+	_uniffiRV, _uniffiErr := rustCallWithError[Error](FfiConverterError{}, func(_uniffiStatus *C.RustCallStatus) RustBufferI {
+		return GoRustBuffer{
+			inner: C.uniffi_falcon_rs_fn_func_sign_compressed(FfiConverterBytesINSTANCE.Lower(privateKeySlice), FfiConverterBytesINSTANCE.Lower(msg), _uniffiStatus),
 		}
+	})
+	if _uniffiErr != nil {
+		var _uniffiDefaultValue []byte
+		return _uniffiDefaultValue, _uniffiErr
+	} else {
+		return FfiConverterBytesINSTANCE.Lift(_uniffiRV), _uniffiErr
+	}
 }
 
 func Verify(publicKeySlice []byte, signature []byte, msg []byte) *Error {
-	_, _uniffiErr := rustCallWithError[Error](FfiConverterError{},func(_uniffiStatus *C.RustCallStatus) bool {
-		C.uniffi_falcon_rs_fn_func_verify(FfiConverterBytesINSTANCE.Lower(publicKeySlice), FfiConverterBytesINSTANCE.Lower(signature), FfiConverterBytesINSTANCE.Lower(msg),_uniffiStatus)
+	_, _uniffiErr := rustCallWithError[Error](FfiConverterError{}, func(_uniffiStatus *C.RustCallStatus) bool {
+		C.uniffi_falcon_rs_fn_func_verify(FfiConverterBytesINSTANCE.Lower(publicKeySlice), FfiConverterBytesINSTANCE.Lower(signature), FfiConverterBytesINSTANCE.Lower(msg), _uniffiStatus)
 		return false
 	})
-		return _uniffiErr
+	return _uniffiErr
 }
-
