@@ -56,7 +56,7 @@ OBJ = codec.o common.o deterministic.o falcon.o fft.o fpr.o keygen.o rng.o shake
 all: tests/test_deterministic tests/test_falcon tests/speed
 
 clean:
-	-rm -f $(OBJ) tests/test_deterministic tests/test_deterministic.o tests/test_falcon tests/test_falcon.o tests/speed tests/speed.o
+	-rm -f $(OBJ) tests/test_deterministic tests/test_deterministic.o tests/test_falcon tests/test_falcon.o tests/speed tests/speed.o falcon.mjs
 
 tests/test_deterministic: tests/test_deterministic.o $(OBJ)
 	$(LD) $(LDFLAGS) -o tests/test_deterministic tests/test_deterministic.o $(OBJ) $(LIBS)
@@ -108,3 +108,15 @@ tests/test_deterministic.o: tests/test_deterministic.c deterministic.h falcon.h 
 
 vrfy.o: vrfy.c config.h inner.h fpr.h
 	$(CC) $(CFLAGS) -c -o vrfy.o vrfy.c
+
+ts: codec.c common.c deterministic.c falcon.c fft.c fpr.c keygen.c rng.c shake.c sign.c vrfy.c
+	emcc codec.c common.c deterministic.c falcon.c fft.c fpr.c keygen.c rng.c shake.c sign.c vrfy.c \
+		-O3 \
+		-s WASM=1 \
+		-s EXPORTED_FUNCTIONS='["_falcon_det1024_sign_compressed", "_falcon_det1024_verify_compressed", "_shake256_init_prng_from_seed", "_falcon_det1024_keygen", "_malloc", "_free"]' \
+		-s EXPORTED_RUNTIME_METHODS='["HEAPU8", "HEAPU32"]' \
+		-s STACK_SIZE=262144 \
+		-s MODULARIZE=1 \
+		-s EXPORT_ES6=1 \
+		-o packages/ts/falcon.mjs
+
