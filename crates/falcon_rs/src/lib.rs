@@ -2,7 +2,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+mod falcon_sys {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
 
 use std::{fmt::Display, ptr};
 
@@ -53,7 +55,7 @@ pub fn verify(
 
     let result = unsafe {
         if msg.is_empty() {
-            falcon_det1024_verify_compressed(
+            falcon_sys::falcon_det1024_verify_compressed(
                 signature.as_ptr() as *const _,
                 signature.len(),
                 public_key.as_ptr() as *const _,
@@ -61,7 +63,7 @@ pub fn verify(
                 0,
             )
         } else {
-            falcon_det1024_verify_compressed(
+            falcon_sys::falcon_det1024_verify_compressed(
                 signature.as_ptr() as *const _,
                 signature.len(),
                 public_key.as_ptr() as *const _,
@@ -81,14 +83,14 @@ pub fn verify(
 pub fn verify_ct(public_key: &PublicKey, signature: &CTSignature, msg: &[u8]) -> Result<(), Error> {
     let result = unsafe {
         if msg.is_empty() {
-            falcon_det1024_verify_ct(
+            falcon_sys::falcon_det1024_verify_ct(
                 signature.as_ptr() as *const _,
                 public_key.as_ptr() as *const _,
                 ptr::null(),
                 0,
             )
         } else {
-            falcon_det1024_verify_ct(
+            falcon_sys::falcon_det1024_verify_ct(
                 signature.as_ptr() as *const _,
                 public_key.as_ptr() as *const _,
                 msg.as_ptr() as *const _,
@@ -113,7 +115,7 @@ pub fn sign_compressed(private_key_slice: &[u8], msg: &[u8]) -> Result<Compresse
 
     let result = unsafe {
         if msg.is_empty() {
-            falcon_det1024_sign_compressed(
+            falcon_sys::falcon_det1024_sign_compressed(
                 sig.as_mut_ptr() as *mut _,
                 &mut sig_len,
                 private_key.as_ptr() as *const _,
@@ -121,7 +123,7 @@ pub fn sign_compressed(private_key_slice: &[u8], msg: &[u8]) -> Result<Compresse
                 0,
             )
         } else {
-            falcon_det1024_sign_compressed(
+            falcon_sys::falcon_det1024_sign_compressed(
                 sig.as_mut_ptr() as *mut _,
                 &mut sig_len,
                 private_key.as_ptr() as *const _,
@@ -143,7 +145,7 @@ pub fn convert_to_ct(signature: &CompressedSignature) -> Result<CTSignature, Err
     let mut sig_ct = [0u8; CT_SIGNATURE_SIZE];
 
     let result = unsafe {
-        falcon_det1024_convert_compressed_to_ct(
+        falcon_sys::falcon_det1024_convert_compressed_to_ct(
             sig_ct.as_mut_ptr() as *mut _,
             signature.as_ptr() as *const _,
             signature.len(),
@@ -165,13 +167,17 @@ pub struct KeyPair {
 
 #[uniffi::export]
 pub fn generate_key(seed: &[u8]) -> Result<KeyPair, Error> {
-    let mut rng = unsafe { std::mem::zeroed::<shake256_context>() };
+    let mut rng = unsafe { std::mem::zeroed::<falcon_sys::shake256_context>() };
 
     unsafe {
         if seed.is_empty() {
-            shake256_init_prng_from_seed(&mut rng, ptr::null(), 0);
+            falcon_sys::shake256_init_prng_from_seed(&mut rng, ptr::null(), 0);
         } else {
-            shake256_init_prng_from_seed(&mut rng, seed.as_ptr() as *const _, seed.len());
+            falcon_sys::shake256_init_prng_from_seed(
+                &mut rng,
+                seed.as_ptr() as *const _,
+                seed.len(),
+            );
         }
     }
 
@@ -179,7 +185,7 @@ pub fn generate_key(seed: &[u8]) -> Result<KeyPair, Error> {
     let mut private_key = [0u8; PRIVATE_KEY_SIZE];
 
     let result = unsafe {
-        falcon_det1024_keygen(
+        falcon_sys::falcon_det1024_keygen(
             &mut rng,
             private_key.as_mut_ptr() as *mut _,
             public_key.as_mut_ptr() as *mut _,
