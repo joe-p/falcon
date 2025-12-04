@@ -80,7 +80,11 @@ pub fn verify(
     Ok(())
 }
 
-pub fn verify_ct(public_key: &PublicKey, signature: &CTSignature, msg: &[u8]) -> Result<(), Error> {
+pub fn verify_signature_ct(
+    public_key: &PublicKey,
+    signature: &CTSignature,
+    msg: &[u8],
+) -> Result<(), Error> {
     let sig = signature.as_ptr() as *const c_void;
     let pubkey = public_key.as_ptr() as *const c_void;
     let (data, data_len) = slice_to_ffi_ptr(msg);
@@ -181,7 +185,7 @@ mod tests {
         verify(&key_pair.public_key, &sig, msg).unwrap();
 
         let sig_ct = convert_to_ct(&sig).unwrap();
-        verify_ct(
+        verify_signature_ct(
             &key_pair.public_key.as_slice().try_into().unwrap(),
             &sig_ct,
             msg,
@@ -200,7 +204,7 @@ mod tests {
         verify(&key_pair.public_key, &sig, msg).unwrap();
 
         let sig_ct = convert_to_ct(&sig).unwrap();
-        verify_ct(
+        verify_signature_ct(
             &key_pair.public_key.as_slice().try_into().unwrap(),
             &sig_ct,
             msg,
