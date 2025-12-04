@@ -204,4 +204,23 @@ mod tests {
         )
         .unwrap();
     }
+
+    #[test]
+    fn test_empty_message_signing() {
+        let seed = b"test seed";
+        let key_pair = generate_key(seed).unwrap();
+
+        let msg = b"";
+        let sig = sign_compressed(&key_pair.private_key, msg).unwrap();
+
+        verify(&key_pair.public_key, &sig, msg).unwrap();
+
+        let sig_ct = convert_to_ct(&sig).unwrap();
+        verify_ct(
+            &key_pair.public_key.as_slice().try_into().unwrap(),
+            &sig_ct,
+            msg,
+        )
+        .unwrap();
+    }
 }
