@@ -6,7 +6,7 @@ mod falcon_sys {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-use std::{fmt::Display, ptr};
+use std::{ffi::c_void, fmt::Display, ptr};
 
 use uniffi::{self};
 
@@ -53,24 +53,19 @@ pub fn verify(
 ) -> Result<(), Error> {
     let public_key: &PublicKey = public_key_slice.try_into().unwrap();
 
-    let result = unsafe {
-        if msg.is_empty() {
-            falcon_sys::falcon_det1024_verify_compressed(
-                signature.as_ptr() as *const _,
-                signature.len(),
-                public_key.as_ptr() as *const _,
-                ptr::null(),
-                0,
-            )
-        } else {
-            falcon_sys::falcon_det1024_verify_compressed(
-                signature.as_ptr() as *const _,
-                signature.len(),
-                public_key.as_ptr() as *const _,
-                msg.as_ptr() as *const _,
-                msg.len(),
-            )
+    let sig = signature.as_ptr() as *const c_void;
+    let sig_len = signature.len();
+    let pubkey = public_key.as_ptr() as *const c_void;
+
+    let result = if msg.is_empty() {
+        unsafe {
+            falcon_sys::falcon_det1024_verify_compressed(sig, sig_len, pubkey, ptr::null(), 0)
         }
+    } else {
+        let data = msg.as_ptr() as *const c_void;
+        let msg_len = msg.len();
+
+        unsafe { falcon_sys::falcon_det1024_verify_compressed(sig, sig_len, pubkey, data, msg_len) }
     };
 
     if result != 0 {
@@ -81,22 +76,16 @@ pub fn verify(
 }
 
 pub fn verify_ct(public_key: &PublicKey, signature: &CTSignature, msg: &[u8]) -> Result<(), Error> {
-    let result = unsafe {
-        if msg.is_empty() {
-            falcon_sys::falcon_det1024_verify_ct(
-                signature.as_ptr() as *const _,
-                public_key.as_ptr() as *const _,
-                ptr::null(),
-                0,
-            )
-        } else {
-            falcon_sys::falcon_det1024_verify_ct(
-                signature.as_ptr() as *const _,
-                public_key.as_ptr() as *const _,
-                msg.as_ptr() as *const _,
-                msg.len(),
-            )
-        }
+    let sig = signature.as_ptr() as *const c_void;
+    let pubkey = public_key.as_ptr() as *const c_void;
+
+    let result = if msg.is_empty() {
+        unsafe { falcon_sys::falcon_det1024_verify_ct(sig, pubkey, ptr::null(), 0) }
+    } else {
+        let data = msg.as_ptr() as *const c_void;
+        let data_len = msg.len();
+
+        unsafe { falcon_sys::falcon_det1024_verify_ct(sig, pubkey, data, data_len) }
     };
 
     if result != 0 {
@@ -113,23 +102,19 @@ pub fn sign_compressed(private_key_slice: &[u8], msg: &[u8]) -> Result<Compresse
     let mut sig = vec![0u8; SIGNATURE_MAX_SIZE];
     let mut sig_len = 0;
 
-    let result = unsafe {
-        if msg.is_empty() {
-            falcon_sys::falcon_det1024_sign_compressed(
-                sig.as_mut_ptr() as *mut _,
-                &mut sig_len,
-                private_key.as_ptr() as *const _,
-                ptr::null(),
-                0,
-            )
-        } else {
-            falcon_sys::falcon_det1024_sign_compressed(
-                sig.as_mut_ptr() as *mut _,
-                &mut sig_len,
-                private_key.as_ptr() as *const _,
-                msg.as_ptr() as *const _,
-                msg.len(),
-            )
+    let sig_ptr = sig.as_mut_ptr() as *mut c_void;
+    let privkey = private_key.as_ptr() as *const c_void;
+
+    let result = if msg.is_empty() {
+        unsafe {
+            falcon_sys::falcon_det1024_sign_compressed(sig_ptr, &mut sig_len, privkey, ptr::null(), 0)
+        }
+    } else {
+        let data = msg.as_ptr() as *const c_void;
+        let data_len = msg.len();
+
+        unsafe {
+            falcon_sys::falcon_det1024_sign_compressed(sig_ptr, &mut sig_len, privkey, data, data_len)
         }
     };
 
@@ -144,12 +129,12 @@ pub fn sign_compressed(private_key_slice: &[u8], msg: &[u8]) -> Result<Compresse
 pub fn convert_to_ct(signature: &CompressedSignature) -> Result<CTSignature, Error> {
     let mut sig_ct = [0u8; CT_SIGNATURE_SIZE];
 
+    let sig_ct_ptr = sig_ct.as_mut_ptr() as *mut c_void;
+    let sig_ptr = signature.as_ptr() as *const c_void;
+    let sig_len = signature.len();
+
     let result = unsafe {
-        falcon_sys::falcon_det1024_convert_compressed_to_ct(
-            sig_ct.as_mut_ptr() as *mut _,
-            signature.as_ptr() as *const _,
-            signature.len(),
-        )
+        falcon_sys::falcon_det1024_convert_compressed_to_ct(sig_ct_ptr, sig_ptr, sig_len)
     };
 
     if result != 0 {
@@ -169,28 +154,23 @@ pub struct KeyPair {
 pub fn generate_key(seed: &[u8]) -> Result<KeyPair, Error> {
     let mut rng = unsafe { std::mem::zeroed::<falcon_sys::shake256_context>() };
 
-    unsafe {
-        if seed.is_empty() {
-            falcon_sys::shake256_init_prng_from_seed(&mut rng, ptr::null(), 0);
-        } else {
-            falcon_sys::shake256_init_prng_from_seed(
-                &mut rng,
-                seed.as_ptr() as *const _,
-                seed.len(),
-            );
-        }
+    if seed.is_empty() {
+        unsafe { falcon_sys::shake256_init_prng_from_seed(&mut rng, ptr::null(), 0) };
+    } else {
+        let seed_ptr = seed.as_ptr() as *const c_void;
+        let seed_len = seed.len();
+
+        unsafe { falcon_sys::shake256_init_prng_from_seed(&mut rng, seed_ptr, seed_len) };
     }
 
     let mut public_key = [0u8; PUBLIC_KEY_SIZE];
     let mut private_key = [0u8; PRIVATE_KEY_SIZE];
 
-    let result = unsafe {
-        falcon_sys::falcon_det1024_keygen(
-            &mut rng,
-            private_key.as_mut_ptr() as *mut _,
-            public_key.as_mut_ptr() as *mut _,
-        )
-    };
+    let privkey_ptr = private_key.as_mut_ptr() as *mut c_void;
+    let pubkey_ptr = public_key.as_mut_ptr() as *mut c_void;
+
+    let result =
+        unsafe { falcon_sys::falcon_det1024_keygen(&mut rng, privkey_ptr, pubkey_ptr) };
 
     if result != 0 {
         return Err(Error::KeygenFail(result));
