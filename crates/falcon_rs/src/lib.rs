@@ -45,6 +45,17 @@ pub type PrivateKey = [u8; PRIVATE_KEY_SIZE];
 pub type CompressedSignature = Vec<u8>;
 pub type CTSignature = [u8; CT_SIGNATURE_SIZE];
 
+/// Returns a pointer and length for a slice, using null for empty slices.
+/// This is necessary for FFI calls where passing a dangling pointer (from an empty slice)
+/// could be undefined behavior.
+fn slice_to_ffi_ptr(data: &[u8]) -> (*const c_void, usize) {
+    if data.is_empty() {
+        (ptr::null(), 0)
+    } else {
+        (data.as_ptr() as *const c_void, data.len())
+    }
+}
+
 #[uniffi::export]
 pub fn verify(
     public_key_slice: &[u8],
@@ -56,16 +67,10 @@ pub fn verify(
     let sig = signature.as_ptr() as *const c_void;
     let sig_len = signature.len();
     let pubkey = public_key.as_ptr() as *const c_void;
+    let (data, data_len) = slice_to_ffi_ptr(msg);
 
-    let result = if msg.is_empty() {
-        unsafe {
-            falcon_sys::falcon_det1024_verify_compressed(sig, sig_len, pubkey, ptr::null(), 0)
-        }
-    } else {
-        let data = msg.as_ptr() as *const c_void;
-        let msg_len = msg.len();
-
-        unsafe { falcon_sys::falcon_det1024_verify_compressed(sig, sig_len, pubkey, data, msg_len) }
+    let result = unsafe {
+        falcon_sys::falcon_det1024_verify_compressed(sig, sig_len, pubkey, data, data_len)
     };
 
     if result != 0 {
@@ -78,15 +83,9 @@ pub fn verify(
 pub fn verify_ct(public_key: &PublicKey, signature: &CTSignature, msg: &[u8]) -> Result<(), Error> {
     let sig = signature.as_ptr() as *const c_void;
     let pubkey = public_key.as_ptr() as *const c_void;
+    let (data, data_len) = slice_to_ffi_ptr(msg);
 
-    let result = if msg.is_empty() {
-        unsafe { falcon_sys::falcon_det1024_verify_ct(sig, pubkey, ptr::null(), 0) }
-    } else {
-        let data = msg.as_ptr() as *const c_void;
-        let data_len = msg.len();
-
-        unsafe { falcon_sys::falcon_det1024_verify_ct(sig, pubkey, data, data_len) }
-    };
+    let result = unsafe { falcon_sys::falcon_det1024_verify_ct(sig, pubkey, data, data_len) };
 
     if result != 0 {
         return Err(Error::VerifyFail(result));
@@ -104,18 +103,10 @@ pub fn sign_compressed(private_key_slice: &[u8], msg: &[u8]) -> Result<Compresse
 
     let sig_ptr = sig.as_mut_ptr() as *mut c_void;
     let privkey = private_key.as_ptr() as *const c_void;
+    let (data, data_len) = slice_to_ffi_ptr(msg);
 
-    let result = if msg.is_empty() {
-        unsafe {
-            falcon_sys::falcon_det1024_sign_compressed(sig_ptr, &mut sig_len, privkey, ptr::null(), 0)
-        }
-    } else {
-        let data = msg.as_ptr() as *const c_void;
-        let data_len = msg.len();
-
-        unsafe {
-            falcon_sys::falcon_det1024_sign_compressed(sig_ptr, &mut sig_len, privkey, data, data_len)
-        }
+    let result = unsafe {
+        falcon_sys::falcon_det1024_sign_compressed(sig_ptr, &mut sig_len, privkey, data, data_len)
     };
 
     if result != 0 {
@@ -154,14 +145,8 @@ pub struct KeyPair {
 pub fn generate_key(seed: &[u8]) -> Result<KeyPair, Error> {
     let mut rng = unsafe { std::mem::zeroed::<falcon_sys::shake256_context>() };
 
-    if seed.is_empty() {
-        unsafe { falcon_sys::shake256_init_prng_from_seed(&mut rng, ptr::null(), 0) };
-    } else {
-        let seed_ptr = seed.as_ptr() as *const c_void;
-        let seed_len = seed.len();
-
-        unsafe { falcon_sys::shake256_init_prng_from_seed(&mut rng, seed_ptr, seed_len) };
-    }
+    let (seed_ptr, seed_len) = slice_to_ffi_ptr(seed);
+    unsafe { falcon_sys::shake256_init_prng_from_seed(&mut rng, seed_ptr, seed_len) };
 
     let mut public_key = [0u8; PUBLIC_KEY_SIZE];
     let mut private_key = [0u8; PRIVATE_KEY_SIZE];
@@ -169,8 +154,7 @@ pub fn generate_key(seed: &[u8]) -> Result<KeyPair, Error> {
     let privkey_ptr = private_key.as_mut_ptr() as *mut c_void;
     let pubkey_ptr = public_key.as_mut_ptr() as *mut c_void;
 
-    let result =
-        unsafe { falcon_sys::falcon_det1024_keygen(&mut rng, privkey_ptr, pubkey_ptr) };
+    let result = unsafe { falcon_sys::falcon_det1024_keygen(&mut rng, privkey_ptr, pubkey_ptr) };
 
     if result != 0 {
         return Err(Error::KeygenFail(result));
